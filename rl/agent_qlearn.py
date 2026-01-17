@@ -3,8 +3,8 @@ import numpy as np
 class QLearningAgent:
     """
     Discrete Q-learning agent.
-    State is a tuple of per-AP bins -> single integer state id.
-    Action is an index into a predefined action list (each action = list of CWmin per AP).
+    State: encoded integer id
+    Action: index into an action list (here, delta CWmin actions)
     """
 
     def __init__(self, n_states: int, n_actions: int,
