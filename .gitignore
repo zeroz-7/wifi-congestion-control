@@ -1,4 +1,22 @@
+# Python noise
 __pycache__/
 *.pyc
+
+# WSL utils/build dirs
 venv/
 build/
+cmake-cache/
+*.o
+.lock-ns3*git
+
+# Runtime outputs
+/runs
+/tmp
+/logs
+
+# IPC files
+state.csv
+action.txt
+
+# Editor
+.vscode/
