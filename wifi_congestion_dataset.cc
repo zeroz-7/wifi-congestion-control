@@ -136,7 +136,6 @@ int main(int argc, char *argv[])
     phys[i].SetChannel(ychan.Create());
     phys[i].Set("TxPowerStart", DoubleValue(txPowers[i]));
     phys[i].Set("TxPowerEnd", DoubleValue(txPowers[i]));
-    phys[i].Set("ChannelNumber", UintegerValue(channels[i]));
   }
 
   WifiMacHelper mac;
