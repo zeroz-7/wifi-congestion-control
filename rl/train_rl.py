@@ -7,14 +7,16 @@ from actions import action_to_ns3_args
 from agent_qlearn import QLearningAgent
 
 # ---- CONFIG ----
-NS3_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "ns3"))
+NS3_ROOT = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "..")
+)
 
 N_APS = 3
 STEP_TIME = 10
 N_STA_PER_AP = 25
 N_BG = 15
 
-EPISODES = 80
+EPISODES = 2
 STEPS_PER_EP = 1  # keep 1-step episodes initially
 
 # Discrete CWmin choices (must be sorted)

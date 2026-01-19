@@ -34,7 +34,7 @@ def compute_reward(T, Q, cfg: RewardConfig) -> float:
 
 class Ns3Env:
     """
-    Runs ns-3 scratch/wifi_congestion_dataset and reads per_ap_step_metrics.csv
+    Runs ns-3 scratch/wifi-congestion-control/wifi_congestion_dataset and reads per_ap_step_metrics.csv
 
     Observation: dict with
       T: list[Mbps] per AP
@@ -48,9 +48,12 @@ class Ns3Env:
         self.reward_cfg = reward_cfg
         self.seed = seed
         self.run_id = 1
+        print("NS3_ROOT =", self.ns3_root)
+        print("ns3 exists?", os.path.exists(os.path.join(self.ns3_root, "ns3")))
+
 
     def _run_ns3(self, args: str):
-        cmd = ["./ns3", "run", f"scratch/wifi_congestion_dataset -- {args}"]
+        cmd = ["./ns3", "run", f"scratch/wifi-congestion-control/wifi_congestion_dataset {args}"]
         subprocess.run(cmd, cwd=self.ns3_root, check=True)
 
     def step(self, action_args: str) -> tuple[dict, float]:
