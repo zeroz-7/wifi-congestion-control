@@ -20,17 +20,9 @@ def jains_fairness(x: np.ndarray) -> float:
     return (s1 * s1) / (n * s2)
 
 def compute_reward(T, Q, cfg: RewardConfig) -> float:
-    T = np.array(T, dtype=float)
-    Q = np.array(Q, dtype=float)
-
-    if cfg.reward_mode == "global":
-        return float(np.sum(T) - cfg.beta * np.sum(Q))
-
-    if cfg.reward_mode == "fair":
-        J = jains_fairness(T)
-        return float(np.sum(T) + cfg.gamma * J - cfg.beta * np.sum(Q))
-
-    raise ValueError(f"Unknown reward_mode: {cfg.reward_mode}")
+    # Delay-only reward (lower is better)
+    avg_delay = float(np.mean(Q))
+    return -avg_delay
 
 class Ns3Env:
     """

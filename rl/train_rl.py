@@ -12,12 +12,12 @@ NS3_ROOT = os.path.abspath(
 )
 
 N_APS = 3
-STEP_TIME = 10
+STEP_TIME = 30 # allowing queue dynamics to evolve
 N_STA_PER_AP = 25
 N_BG = 15
 
-EPISODES = 2
-STEPS_PER_EP = 1  # keep 1-step episodes initially
+EPISODES = 3
+STEPS_PER_EP = 5  # keep 1-step episodes initially
 
 # Discrete CWmin choices (must be sorted)
 CWMIN_VALUES = [7, 15, 31, 63, 127]
@@ -26,8 +26,12 @@ CWMIN_VALUES = [7, 15, 31, 63, 127]
 R_CFG = RewardConfig(reward_mode="fair", beta=0.05, gamma=5.0)
 
 # State binning
-T_BINS = [5, 15]     # Mbps
-Q_BINS = [10, 50]    # ms (or whatever your env returns)
+AVG_T_BINS = [5, 15]    # Mbps
+AVG_Q_BINS = [10, 50]   # ms (or whatever your env returns)
+
+# Delay bins (ms)
+DELAY_BINS = [500, 1500, 2500]      # low / med / high congestion
+DELAY_TREND_BINS = [-200, 200]   # decreasing / stable / increasing
 
 # Global delta action space (ONE value applied to all APs)
 ACTIONS = [-1, 0, +1]  # decrease / keep / increase CWmin on the grid
@@ -57,38 +61,32 @@ def apply_global_delta(cwmins_current, delta, cw_values):
     return next_cwmins
 
 
-def obs_to_state_id(obs, cwmins_current):
-    """
-    State = bins(T per AP) + bins(Q per AP) + bins(CWmin per AP)
-    Mixed radix encoding:
-      T bins: 3 each
-      Q bins: 3 each
-      CW bins: len(CWMIN_VALUES) each
-    """
-    Tb = [bin_value(t, T_BINS) for t in obs["T"]]
-    Qb = [bin_value(q, Q_BINS) for q in obs["Q"]]
-    Cb = [nearest_cw_index(c, CWMIN_VALUES) for c in cwmins_current]
+def obs_to_state_id(obs, cwmins_current, prev_avg_delay):
+    avg_delay = sum(obs["Q"]) / len(obs["Q"])
+    delay_trend = avg_delay - prev_avg_delay
 
-    digits = Tb + Qb + Cb
-    radices = ([3] * len(Tb)) + ([3] * len(Qb)) + ([len(CWMIN_VALUES)] * len(Cb))
+    avg_d_bin = bin_value(avg_delay, DELAY_BINS)
+    trend_bin = bin_value(delay_trend, DELAY_TREND_BINS)
+    cw_idx = nearest_cw_index(cwmins_current[0], CWMIN_VALUES)
 
-    sid = 0
-    for d, base in zip(digits, radices):
-        sid = sid * base + int(d)
-    return sid
+    sid = (
+        avg_d_bin * (3 * len(CWMIN_VALUES)) +
+        trend_bin * len(CWMIN_VALUES) +
+        cw_idx
+    )
+    return sid, avg_delay
 
 
 def main():
     n_actions = len(ACTIONS)  # 3 actions total
 
     # State space size:
-    # (3^(2*N_APS)) * ((len(CWMIN_VALUES))^N_APS)
-    n_states = int((3 ** (2 * N_APS)) * ((len(CWMIN_VALUES)) ** N_APS))
+    n_states = 4 * 3 * len(CWMIN_VALUES)
 
     agent = QLearningAgent(
         n_states=n_states,
         n_actions=n_actions,
-        lr=0.15,
+        lr=0.05,
         gamma=0.95,
         eps_start=1.0,
         eps_end=0.1,
@@ -102,32 +100,45 @@ def main():
     # Persist CWmins across episodes (adaptive)
     cwmins_current = [31] * N_APS  # start mid-grid
     s = 0  # initial dummy state; becomes meaningful after first obs
+    prev_avg_delay = None
 
     for ep in range(1, EPISODES + 1):
         ep_reward = 0.0
 
         for step in range(STEPS_PER_EP):
             a_idx = agent.select_action(s)
-            delta = ACTIONS[a_idx]  # global delta: -1/0/+1
+            delta = ACTIONS[a_idx]
 
             cwmins_next = apply_global_delta(cwmins_current, delta, CWMIN_VALUES)
 
             args = action_to_ns3_args(
                 cwmins=cwmins_next,
                 seed=1,
-                run=ep,
+                run=ep * 100 + step,   # IMPORTANT: unique runs
                 stepTime=STEP_TIME,
                 nStaPerAp=N_STA_PER_AP,
                 nBg=N_BG
             )
 
-            obs, r = env.step(args)
+            obs, _ = env.step(args)
 
-            s2 = obs_to_state_id(obs, cwmins_next)
+            avg_delay = sum(obs["Q"]) / len(obs["Q"])
+
+            # --- REWARD: delta-delay ---
+            if prev_avg_delay is None:
+                r = 0.0
+            else:
+                raw_delta = prev_avg_delay - avg_delay
+
+                # Normalize by scale (~2000 ms observed)
+                r = np.clip(raw_delta / 500.0, -1.0, 1.0)
+
+            s2, _ = obs_to_state_id(obs, cwmins_next, prev_avg_delay or avg_delay)
+
             done = (step == STEPS_PER_EP - 1)
+            agent.update(s, a_idx, r, s2, done=done)
 
-            agent.update(s, a_idx, r, s2, done)
-
+            prev_avg_delay = avg_delay
             cwmins_current = cwmins_next
             s = s2
             ep_reward += r
@@ -137,16 +148,13 @@ def main():
                 "step": step,
                 "reward": r,
                 "ep_reward": ep_reward,
-                "delta": int(delta),
+                "delta": delta,
                 "cwmins": ",".join(map(str, cwmins_current)),
-                "T": ",".join([f"{x:.3f}" for x in obs["T"]]),
-                "Q": ",".join([f"{x:.3f}" for x in obs["Q"]]),
-                "loss": obs["loss"],
+                "avg_delay": avg_delay
             })
 
         agent.decay_eps()
-        print(f"EP {ep:03d}  ep_reward={ep_reward:.3f}  eps={agent.eps:.3f}  delta={delta:+d}  cwmins={cwmins_current}")
-
+        print(f"EP {ep:03d} reward={ep_reward:.3f} eps={agent.eps:.3f}")
     df = pd.DataFrame(rows)
     out = os.path.join(os.path.dirname(__file__), "rl_history.csv")
     df.to_csv(out, index=False)
