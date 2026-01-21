@@ -16,7 +16,7 @@ STEP_TIME = 30 # allowing queue dynamics to evolve
 N_STA_PER_AP = 25
 N_BG = 15
 
-EPISODES = 3
+EPISODES = 40
 STEPS_PER_EP = 5  # keep 1-step episodes initially
 
 # Discrete CWmin choices (must be sorted)
