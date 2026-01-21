@@ -10,8 +10,8 @@ cmake-cache/
 .lock-ns3*git
 
 # Runtime outputs
-*.csv
-*.png
+rl/*.csv
+rl/*.png
 
 # IPC files
 state.csv
