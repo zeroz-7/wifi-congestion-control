@@ -1,0 +1,12 @@
+In our simulation:
+
+Traffic direction: STAs → APs (uplink)
+    why? easier to work with unidirectional half duplex simulations
+
+Who's transmitting: The STAs (clients)
+
+
+how are we implementing traffic scenarios at the moment?
+set dataRates for each AP, light, heavy, medium, will implement bursty traffic (even time varying) in later phases.
+
+independent, per AP control implemented in the latest version of the project. initially global CWmin and delta actions were in place.
